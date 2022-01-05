@@ -28,7 +28,7 @@ def main():
 
     bestWord, worstCaseValidSetSize, worstCaseScore = computeGreedyBestWord(validWords=words, allowedWords=allowedWords, hardMode=(not args.easy_mode), outputCalculations=True, shortCircuit=False)
 
-    results = {word: (worstCaseValidSetSize[word], worstCaseScore[word]) for word in allowedWords]}
+    results = {word: (worstCaseValidSetSize[word], worstCaseScore[word]) for word in allowedWords}
     results_dir = 'graham-results'
     os.makedirs(results_dir, exist_ok=True)
     filename = 'words-{:05d}-to-{:05d}.json'.format(args.seed * args.chunk_size, (args.seed + 1) * args.chunk_size - 1)
