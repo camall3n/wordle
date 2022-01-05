@@ -6,6 +6,8 @@ from enum import Enum
 
 from tqdm import tqdm
 
+from nextword import nextWord as cached_next_words
+
 with open('wordle_words_part_1.txt', 'r') as fp:
     wordsPart1 = json.load(fp)
 
@@ -357,7 +359,7 @@ def computeGreedyBestWord(validWords: list,
 
     worstCaseValidSetSize = defaultdict(int)
     worstCaseScore = {}
-    for word in tqdm(allowedWords):
+    for word in allowedWords:
         possibleScores = set()
         for potential_goal in validWords:
             hypotheticalScore = scoreWord(word, potential_goal)
@@ -398,7 +400,7 @@ def solve():
         print(score2str(score))
         info = interpretScore(guess, score)
         validWords = restrictValidWords(validWords, info)
-        allowedWords = restrictAllowedWords(allowedWords=words,
+        allowedWords = restrictAllowedWords(allowedWords=allowedWords,
                                             wordList=words,
                                             info=info,
                                             lastWord=guess,
@@ -406,19 +408,11 @@ def solve():
         len(allowedWords)
         nGuesses[goal] = 1
 
-        cached_next_words = {
-            '⬛⬛⬛⬛⬛': 'phony',
-            '⬛🟩⬛⬛⬛': 'yente',
-            '⬛⬛⬛⬛🟨': 'linty',
-            '⬛⬛⬛🟩⬛': 'canal',
-            '🟨🟨⬛⬛⬛': 'losen'
-        }
-
         while score2str(score) != CORRECT:
             if nGuesses[goal] == 1 and score2str(score) in cached_next_words:
                 guess = cached_next_words[score2str(score)]
             else:
-                guess, calcs = computeGreedyBestWord(validWords,
+                guess, calcs, score = computeGreedyBestWord(validWords,
                                                      allowedWords,
                                                      info,
                                                      hardMode=True,
