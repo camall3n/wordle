@@ -20,11 +20,6 @@ def main():
     parser.add_argument("-f", "--fool_ipython", help="Dummy arg to fool ipython", default="1")
     args = parser.parse_args()
 
-    class Args(): pass
-    args = Args()
-    args.easy_mode = False
-    args.seed = 172
-
     guess = 'serai'
     validWords = words
     allowedWords = words
