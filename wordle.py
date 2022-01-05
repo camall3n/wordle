@@ -348,76 +348,97 @@ def computeGreedyBestWord(validWords: list,
                           allowedWords: list = None,
                           info: PuzzleInfo = NoInfo,
                           hardMode: bool = True,
-                          outputCalculations: bool = False):
+                          outputCalculations: bool = False,
+                          shortCircuit:bool = True):
     if allowedWords is None:
         allowedWords = words
 
     worstCaseSizeForBestWordSoFar = len(validWords)
 
     worstCaseValidSetSize = defaultdict(int)
-    # it = iter(allowedWords)
-    # word = next(it)
+    worstCaseScore = {}
     for word in tqdm(allowedWords):
         possibleScores = set()
         for potential_goal in validWords:
             hypotheticalScore = scoreWord(word, potential_goal)
             possibleScores.add(score2str(hypotheticalScore))
-        # it2 = iter(possibleScores)
-        # hypotheticalScore = next(it2)
+
         for hypotheticalScore in possibleScores:
             hypothetical_info = interpretScore(word, str2score(hypotheticalScore))
             newValidWords = restrictValidWords(validWords, hypothetical_info)
+
             worstCaseValidSetSize[word] = max(worstCaseValidSetSize[word], len(newValidWords))
+            if worstCaseValidSetSize[word] == len(newValidWords):
+                worstCaseScore[word] = hypotheticalScore
             if worstCaseValidSetSize[word] > worstCaseSizeForBestWordSoFar:
-                break
+                if shortCircuit:
+                    break
 
         bestWord = min(worstCaseValidSetSize, key=worstCaseValidSetSize.get)
         worstCaseSizeForBestWordSoFar = worstCaseValidSetSize[bestWord]
 
     if outputCalculations:
-        result = bestWord, worstCaseValidSetSize
+        result = bestWord, worstCaseValidSetSize, worstCaseScore
     else:
         result = bestWord
 
     return result
 
 def solve():
-    goal = 'tapir'
-    hardMode = True
-    validWords = copy.deepcopy(words)
-    allowedWords = copy.deepcopy(words)
-    info = NoInfo
+    nGuesses = {}
+    for goal in tqdm(wordsPart1):
+        hardMode = True
+        validWords = copy.deepcopy(words)
+        allowedWords = copy.deepcopy(words)
+        info = NoInfo
 
-    guess = computeGreedyBestWord(validWords, hardMode=True, outputCalculations=True)
-    print('guess: {}'.format(guess), end='   ')
-    score = scoreWord(guess, goal)
-    print(score2str(score))
-    info = interpretScore(guess, score)
-    validWords = restrictValidWords(validWords, info)
-    allowedWords = restrictAllowedWords(allowedWords=words,
-                                        wordList=words,
-                                        info=info,
-                                        lastWord=guess,
-                                        hardMode=hardMode)
-    len(allowedWords)
-
-    while score2str(score) != CORRECT:
-        guess, calcs = computeGreedyBestWord(validWords,
-                                             allowedWords,
-                                             info,
-                                             hardMode=True,
-                                             outputCalculations=True)
+        guess = 'serai'
         print('guess: {}'.format(guess), end='   ')
         score = scoreWord(guess, goal)
         print(score2str(score))
-        new_info = interpretScore(guess, score)
-        validWords = restrictValidWords(validWords, new_info)
-        allowedWords = restrictAllowedWords(allowedWords,
-                                            info=new_info,
+        info = interpretScore(guess, score)
+        validWords = restrictValidWords(validWords, info)
+        allowedWords = restrictAllowedWords(allowedWords=words,
+                                            wordList=words,
+                                            info=info,
                                             lastWord=guess,
                                             hardMode=hardMode)
         len(allowedWords)
-        info = updateInfo(info, new_info)
+        nGuesses[goal] = 1
+
+        cached_next_words = {
+            '⬛⬛⬛⬛⬛': 'phony',
+            '⬛🟩⬛⬛⬛': 'yente',
+            '⬛⬛⬛⬛🟨': 'linty',
+            '⬛⬛⬛🟩⬛': 'canal',
+            '🟨🟨⬛⬛⬛': 'losen'
+        }
+
+        while score2str(score) != CORRECT:
+            if nGuesses[goal] == 1 and score2str(score) in cached_next_words:
+                guess = cached_next_words[score2str(score)]
+            else:
+                guess, calcs = computeGreedyBestWord(validWords,
+                                                     allowedWords,
+                                                     info,
+                                                     hardMode=True,
+                                                     outputCalculations=True)
+            print('guess: {}'.format(guess), end='   ')
+            score = scoreWord(guess, goal)
+            print(score2str(score))
+            new_info = interpretScore(guess, score)
+            validWords = restrictValidWords(validWords, new_info)
+            allowedWords = restrictAllowedWords(allowedWords,
+                                                info=new_info,
+                                                lastWord=guess,
+                                                hardMode=hardMode)
+            # len(allowedWords)
+            info = updateInfo(info, new_info)
+            nGuesses[goal] += 1
+
+        print()
+
+
 
 def test():
     test_scoring()
