@@ -185,10 +185,10 @@ def isWordAllowed(word: str, wordList: list, info: PuzzleInfo, hardMode: bool = 
 def isWordCompatibleWithInfo(word: str, info: PuzzleInfo, hardMode: bool = True):
     for i, letter in enumerate(word):
         if info.requiredLetters[i] and letter != info.requiredLetters[i]:
-            # print('{} required at position {}'.format(info.requiredLetters[i], i))
+            # print("'{}' required at position {}".format(info.requiredLetters[i], i))
             return False
         if info.letterRestrictions[i] and letter in info.letterRestrictions[i]:
-            # print('{} forbidden at position {}'.format(info.requiredLetters[i], i))
+            # print("'{}' forbidden at position {}".format(letter, i))
             if hardMode:
                 return False
     # only compute/check nOccurences if necessary
@@ -232,11 +232,21 @@ def updateInfo(oldInfo: PuzzleInfo, newInfo: PuzzleInfo):
             updatedInfo.requiredLetters[i] = newInfo.requiredLetters[i]
         updatedInfo.letterRestrictions[i] = updatedInfo.letterRestrictions[i].union(
             newInfo.letterRestrictions[i])
-    for letter, maxOccurences in updatedInfo.maxOccurences.items():
-        if letter in newInfo.maxOccurences and newInfo.maxOccurences[letter] < maxOccurences:
+
+    maxKeys = set(updatedInfo.maxOccurences.keys()).union(set(newInfo.maxOccurences.keys()))
+    for letter in maxKeys:
+        if (
+            (letter in newInfo.maxOccurences and letter not in updatedInfo.maxOccurences)
+            or (letter in newInfo.maxOccurences and letter in updatedInfo.maxOccurences and newInfo.maxOccurences[letter] < updatedInfo.maxOccurences[letter])
+        ):
             updatedInfo.maxOccurences[letter] = newInfo.maxOccurences[letter]
-    for letter, minOccurences in updatedInfo.minOccurences.items():
-        if letter in newInfo.minOccurences and newInfo.minOccurences[letter] > minOccurences:
+
+    minKeys = set(updatedInfo.minOccurences.keys()).union(set(newInfo.minOccurences.keys()))
+    for letter in minKeys:
+        if (
+            (letter in newInfo.minOccurences and letter not in updatedInfo.minOccurences)
+            or (letter in newInfo.minOccurences and letter in updatedInfo.minOccurences and newInfo.minOccurences[letter] < updatedInfo.minOccurences[letter])
+        ):
             updatedInfo.minOccurences[letter] = newInfo.minOccurences[letter]
     return updatedInfo
 
@@ -346,20 +356,27 @@ def test_suboptimal_solve():
         print()
         assert score2str(score) == '🟩🟩🟩🟩🟩'
 
-def computeGreedyBestWord(validWords: list,
-                          allowedWords: list = None,
-                          info: PuzzleInfo = NoInfo,
-                          hardMode: bool = True,
-                          outputCalculations: bool = False,
-                          shortCircuit:bool = True):
+def computeGreedyBestWord(
+        validWords: list,
+        allowedWords: list = None,
+        info: PuzzleInfo = NoInfo,
+        hardMode: bool = True,
+        outputCalculations: bool = False,
+        shortCircuit:bool = False):
     if allowedWords is None:
         allowedWords = words
 
+    bestWord = validWords[0]
     worstCaseSizeForBestWordSoFar = len(validWords)
 
     worstCaseValidSetSize = defaultdict(int)
     worstCaseScore = {}
-    for word in allowedWords:
+    worstCaseWords = {}
+    def updateWorstCaseValidSetSize(
+            worstCaseValidSetSize,
+            word,
+            validWords,
+            shortCircuit=shortCircuit):
         possibleScores = set()
         for potential_goal in validWords:
             hypotheticalScore = scoreWord(word, potential_goal)
@@ -372,15 +389,29 @@ def computeGreedyBestWord(validWords: list,
             worstCaseValidSetSize[word] = max(worstCaseValidSetSize[word], len(newValidWords))
             if worstCaseValidSetSize[word] == len(newValidWords):
                 worstCaseScore[word] = hypotheticalScore
+                worstCaseWords[word] = newValidWords
             if worstCaseValidSetSize[word] > worstCaseSizeForBestWordSoFar:
                 if shortCircuit:
                     break
 
-        bestWord = min(worstCaseValidSetSize, key=worstCaseValidSetSize.get)
-        worstCaseSizeForBestWordSoFar = worstCaseValidSetSize[bestWord]
+    for word in validWords:
+        updateWorstCaseValidSetSize(worstCaseValidSetSize, word, validWords, shortCircuit)
+
+        if worstCaseValidSetSize[word] < worstCaseSizeForBestWordSoFar:
+            bestWord = word
+            worstCaseSizeForBestWordSoFar = worstCaseValidSetSize[word]
+
+    for word in allowedWords:
+        if word in validWords:
+            continue
+        updateWorstCaseValidSetSize(worstCaseValidSetSize, word, validWords, shortCircuit)
+
+        if worstCaseValidSetSize[word] < worstCaseValidSetSize[bestWord]:
+            bestWord = word
+            worstCaseSizeForBestWordSoFar = worstCaseValidSetSize[word]
 
     if outputCalculations:
-        result = bestWord, worstCaseValidSetSize, worstCaseScore
+        result = bestWord, worstCaseValidSetSize, worstCaseScore, worstCaseWords
     else:
         result = bestWord
 
@@ -389,17 +420,34 @@ def computeGreedyBestWord(validWords: list,
 def solve():
     nGuesses = {}
     for goal in tqdm(wordsPart1):
+        goal = 'wrote'
         hardMode = True
-        validWords = copy.deepcopy(words)
+        validWords = copy.deepcopy(wordsPart1)
         allowedWords = copy.deepcopy(words)
         info = NoInfo
 
         guess = 'serai'
+
+        isWordAllowed(guess, words, info, hardMode=False)
+        isWordAllowed(guess, words, info, hardMode=True)
+        isWordCompatibleWithInfo(guess, info, hardMode=True)
+        guess in validWords
+
         print('guess: {}'.format(guess), end='   ')
         score = scoreWord(guess, goal)
         print(score2str(score))
+        # score = '⬛⬛⬛🟨⬛'
+        # score = '⬛⬛🟩⬛⬛'
+        # info = interpretScore('serai', str2score('⬛⬛⬛⬛⬛'))
+        # info = interpretScore('bludy', str2score('⬛⬛🟩⬛⬛'))
+        # info = interpretScore('humph', str2score('⬛🟩⬛⬛⬛'))
+        # info = interpretScore('funny', str2score('⬛🟩⬛⬛🟩'))
+        # info = interpretScore('could', str2score('⬛⬛🟨⬛⬛'))
+        # info = interpretScore('humph', str2score('⬛🟩⬛⬛⬛'))
+        # info = interpretScore('funny', str2score('⬛🟩⬛⬛🟩'))
         info = interpretScore(guess, score)
         validWords = restrictValidWords(validWords, info)
+        len(validWords)
         allowedWords = restrictAllowedWords(allowedWords=allowedWords,
                                             wordList=words,
                                             info=info,
@@ -412,22 +460,45 @@ def solve():
             if nGuesses[goal] == 1 and score2str(score) in cached_next_words:
                 guess = cached_next_words[score2str(score)]
             else:
-                guess, calcs, score = computeGreedyBestWord(validWords,
-                                                     allowedWords,
-                                                     info,
-                                                     hardMode=True,
-                                                     outputCalculations=True)
+                guess, calcs, score, hypothetical_words = computeGreedyBestWord(
+                    validWords,
+                    allowedWords,
+                    info,
+                    hardMode=True,
+                    outputCalculations=True
+                )
+                # [hypothetical_words[w] for w in ['count', 'chump', 'cough', 'couth']]
+                # [(w) for w in [item for item in sorted(calcs.items(), key=lambda x:x[1]) if item[0] in validWords]]
+                # score[guess]
+                # calcs['cadgy']
+
+            isWordAllowed(guess, words, info, hardMode=False)
+            isWordAllowed(guess, words, info, hardMode=True)
+            isWordCompatibleWithInfo(guess, info, hardMode=True)
+            guess in validWords
+
             print('guess: {}'.format(guess), end='   ')
             score = scoreWord(guess, goal)
             print(score2str(score))
             new_info = interpretScore(guess, score)
             validWords = restrictValidWords(validWords, new_info)
+            len(validWords)
             allowedWords = restrictAllowedWords(allowedWords,
                                                 info=new_info,
                                                 lastWord=guess,
                                                 hardMode=hardMode)
-            # len(allowedWords)
+            len(allowedWords)
+            # oldInfo = info
+            # newInfo = new_info
             info = updateInfo(info, new_info)
+            # validWords = restrictValidWords(validWords, info)
+            # len(validWords)
+            # allowedWords = restrictAllowedWords(allowedWords,
+            #                                     info=info,
+            #                                     lastWord=guess,
+            #                                     hardMode=hardMode)
+            # len(allowedWords)
+
             nGuesses[goal] += 1
 
         print()
@@ -442,3 +513,17 @@ def test():
     print('All tests passed.')
 
 # solve()
+
+
+#%%
+import numpy as np
+g = np.asarray(list(nGuesses.values()))
+sum(g <= 6)/len(g)
+g.max()
+[goal for goal, guesses in nGuesses.items() if guesses == 6]
+list(nGuesses.items())
+np.where(g==6)
+from matplotlib import pyplot as plt
+plt.hist(nGuesses.values(), bins=70)
+
+json.dumps(nGuesses)
